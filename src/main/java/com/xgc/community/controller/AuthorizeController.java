@@ -2,6 +2,8 @@ package com.xgc.community.controller;
 
 import com.xgc.community.dto.AccessTokenDTO;
 import com.xgc.community.dto.GithubUser;
+import com.xgc.community.mapper.UserMapper;
+import com.xgc.community.model.User;
 import com.xgc.community.provider.GithubProvider;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
@@ -10,6 +12,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 
 import javax.servlet.http.HttpServletRequest;
+import java.util.UUID;
 
 @Controller
 public class AuthorizeController {
@@ -26,6 +29,9 @@ public class AuthorizeController {
     @Value("${github.redirect.uri}")
     String redirectUri;
 
+    @Autowired
+    UserMapper userMapper;
+
     /**
      * 当用户单击index页面的登录按钮时，会向GitHub发送一个请求，
      * GitHub接收到请求后，会回调 /callback ,返回一个Code
@@ -39,10 +45,18 @@ public class AuthorizeController {
         accessTokenDTO.setState(state);
         accessTokenDTO.setRedirect_uri(redirectUri);
         String accessToken = githubProvider.getAccessToken(accessTokenDTO);
-        GithubUser user = githubProvider.getUser(accessToken);
-        if (user != null){
+        GithubUser githubUser = githubProvider.getUser(accessToken);
+        if (githubUser != null){
+            User user = new User();
+            user.setToken(UUID.randomUUID().toString());
+            user.setName(githubUser.getName());
+            user.setAccountId(String.valueOf(githubUser.getId()));
+            user.setGmtCreate(System.currentTimeMillis());
+            user.setGmtModified(user.getGmtCreate());
+            userMapper.insert(user);
+
             //登录成功，将user写入session
-            request.getSession().setAttribute("user",user);
+            request.getSession().setAttribute("user",githubUser);
             return "redirect:/";
         }else {
             //登录失败，重新登录
